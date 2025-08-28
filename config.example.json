@@ -1,0 +1,31 @@
+{
+  "twitch": {
+    "username": "seu_bot_username",
+    "oauth": "oauth:seu_oauth_token_aqui",
+    "channels": ["#seu_canal"]
+  },
+  "bot": {
+    "prefix": "!",
+    "messages": {
+      "connected": "Olá, estou online!",
+      "follow": "Obrigado por seguir, {username}!",
+      "sub": "Obrigado por se inscrever, {username}! Bem-vindo à família!",
+      "cheer": "Obrigado pelos {bits} bits, {username}! Você é demais!"
+    },
+    "features": {
+      "chatCommands": true,
+      "twitchEvents": true,
+      "streamObserver": false,
+      "generativeAI": false,
+      "autoClipping": false
+    }
+  },
+  "ai": {
+    "sensitivity": 0.5,
+    "intensity": 0.5
+  },
+  "filters": {
+    "bannedWords": []
+  }
+}
+

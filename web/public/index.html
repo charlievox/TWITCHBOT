@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel de Controle - Twitch Bot</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🤖 Painel de Controle - Twitch Bot</h1>
+            <div class="status-indicator" id="connectionStatus">
+                <span class="status-dot"></span>
+                <span class="status-text">Verificando...</span>
+            </div>
+        </header>
+
+        <main>
+            <!-- Seção de Status -->
+            <section class="card">
+                <h2>📊 Status do Bot</h2>
+                <div class="status-grid">
+                    <div class="status-item">
+                        <span class="label">Conexão Twitch:</span>
+                        <span class="value" id="twitchConnection">-</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="label">Tempo Online:</span>
+                        <span class="value" id="uptime">-</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="label">Canais:</span>
+                        <span class="value" id="channels">-</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Controle de Camadas -->
+            <section class="card">
+                <h2>🔧 Controle de Camadas</h2>
+                <div class="layers-grid">
+                    <div class="layer-control">
+                        <label>
+                            <input type="checkbox" id="chatCommands" disabled>
+                            <span class="toggle"></span>
+                            Comandos de Chat
+                        </label>
+                    </div>
+                    <div class="layer-control">
+                        <label>
+                            <input type="checkbox" id="twitchEvents" disabled>
+                            <span class="toggle"></span>
+                            Eventos Twitch
+                        </label>
+                    </div>
+                    <div class="layer-control">
+                        <label>
+                            <input type="checkbox" id="streamObserver" onchange="toggleLayer('streamObserver', this.checked)">
+                            <span class="toggle"></span>
+                            Observador de Stream
+                        </label>
+                    </div>
+                    <div class="layer-control">
+                        <label>
+                            <input type="checkbox" id="generativeAI" onchange="toggleLayer('generativeAI', this.checked)">
+                            <span class="toggle"></span>
+                            IA Generativa
+                        </label>
+                    </div>
+                    <div class="layer-control">
+                        <label>
+                            <input type="checkbox" id="autoClipping" onchange="toggleLayer('autoClipping', this.checked)">
+                            <span class="toggle"></span>
+                            Clipping Automático
+                        </label>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Configurações -->
+            <section class="card">
+                <h2>⚙️ Configurações</h2>
+                <div class="config-grid">
+                    <div class="config-item">
+                        <label for="aiIntensity">Intensidade da IA:</label>
+                        <input type="range" id="aiIntensity" min="0" max="1" step="0.1" value="0.5" onchange="updateAIIntensity(this.value)">
+                        <span id="aiIntensityValue">0.5</span>
+                    </div>
+                    <div class="config-item">
+                        <label for="observerSensitivity">Sensibilidade do Observador:</label>
+                        <input type="range" id="observerSensitivity" min="0" max="1" step="0.1" value="0.5" onchange="updateObserverSensitivity(this.value)">
+                        <span id="observerSensitivityValue">0.5</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Estatísticas de Gameplay -->
+            <section class="card">
+                <h2>🎮 Estatísticas de Gameplay</h2>
+                <div class="stats-grid" id="gameplayStats">
+                    <div class="stat-item">
+                        <span class="stat-value" id="kills">0</span>
+                        <span class="stat-label">Kills</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value" id="deaths">0</span>
+                        <span class="stat-label">Deaths</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value" id="wins">0</span>
+                        <span class="stat-label">Vitórias</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value" id="combos">0</span>
+                        <span class="stat-label">Combos</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Clips Recentes -->
+            <section class="card">
+                <h2>🎬 Clips Recentes</h2>
+                <div class="clips-header">
+                    <button onclick="createManualClip()" class="btn btn-primary">Criar Clip Manual</button>
+                </div>
+                <div class="clips-list" id="clipsList">
+                    <p class="no-data">Nenhum clip encontrado</p>
+                </div>
+            </section>
+
+            <!-- Filtros de Palavras -->
+            <section class="card">
+                <h2>🚫 Filtros de Palavras</h2>
+                <div class="filters-section">
+                    <textarea id="bannedWords" placeholder="Digite palavras banidas, uma por linha..." rows="4"></textarea>
+                    <button onclick="updateFilters()" class="btn btn-secondary">Atualizar Filtros</button>
+                </div>
+            </section>
+
+            <!-- Momentos Críticos -->
+            <section class="card">
+                <h2>⭐ Momentos Críticos Recentes</h2>
+                <div class="moments-list" id="momentsList">
+                    <p class="no-data">Nenhum momento crítico detectado</p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
+
