@@ -1,8 +1,11 @@
+
+
 /**
  * Twitch Bot com IA Generativa
  * Arquivo principal que inicializa e coordena todas as camadas do bot
  */
 
+require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 
@@ -100,12 +103,13 @@ class TwitchBot {
         this.chatCommands = new ChatCommands(this.twitchClient, this.config);
 
         // Conectar eventos
-        this.twitchClient.on('message', (channel, userstate, message) => {
-            this.chatCommands.handleCommand(channel, userstate, message);
+         this.twitchClient.on('message', (channel, userstate, messageContent) => { // Renomeado 'message' para 'messageContent' para clareza
+            this.chatCommands.handleCommand(channel, userstate, messageContent);
             
             // Processar mensagem com IA se ativa
             if (this.generativeAI) {
-                this.generativeAI.processChatMessage(channel, userstate, message);
+                // Passando userstate.username para 'username' e messageContent para 'message'
+                this.generativeAI.processChatMessage(userstate.username, messageContent, { channel, userstate });
             }
         });
 
@@ -183,11 +187,11 @@ class TwitchBot {
     async initializeGenerativeAILayer() {
         console.log('Inicializando Camada 4: IA Generativa...');
 
-        // Verificar se OpenAI API key está configurada
-        if (!process.env.OPENAI_API_KEY) {
-            console.warn('OPENAI_API_KEY não configurada. IA Generativa não será ativada.');
-            return;
-        }
+        // REMOVIDA A VERIFICAÇÃO DE CHAVE API, POIS APILIBRE.COM NÃO EXIGE.
+        // if (!process.env.OPENAI_API_KEY) {
+        //     console.warn('OPENAI_API_KEY não configurada. IA Generativa não será ativada.');
+        //     return;
+        // }
 
         // Criar módulo de IA generativa
         this.generativeAI = new GenerativeAI(this.config, this.twitchClient);
@@ -204,7 +208,6 @@ class TwitchBot {
         if (this.chatCommands) {
             this.generativeAI.updateCurrentGame(this.chatCommands.currentGame);
         }
-
         console.log('Camada 4 inicializada com sucesso!');
     }
 

@@ -1,0 +1,31 @@
+{
+  "twitch": {
+    "username": "NickNTF",
+    "oauth": "oauth:aldkfjrmgxoixyt0z99615w9k8bqii",
+    "channels": ["CharlieVox"]
+  },
+  "bot": {
+    "prefix": "!",
+    "messages": {
+      "connected": "Olá, estou online!",
+      "follow": "Obrigado por seguir, {username}!",
+      "sub": "Obrigado por se inscrever, {username}! Bem-vindo à família!",
+      "cheer": "Obrigado pelos {bits} bits, {username}! Você é demais!"
+    },
+    "features": {
+      "chatCommands": true,
+      "twitchEvents": true,
+      "streamObserver": true,
+      "generativeAI": true,
+      "autoClipping": true
+    }
+  },
+  "ai": {
+    "sensitivity": 0.5,
+    "intensity": 0.5
+  },
+  "filters": {
+    "bannedWords": []
+  }
+}
+
