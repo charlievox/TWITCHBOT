@@ -45,6 +45,7 @@ class TwitchBot {
         this.startTime = Date.now();
 
         // --- MODIFICAÇÃO: Instanciar os novos serviços de API e memória ---
+        // Passa o objeto config do bot para os construtores
         this.twitchApiService = new TwitchApiService(this.config);
         this.xboxApiService = new XboxApiService(this.config);
         this.gameMemoryService = new GameMemoryService(this.config);
@@ -62,16 +63,16 @@ class TwitchBot {
 
             // --- MODIFICAÇÃO: Injetar variáveis do .env e novas configurações no objeto de configuração ---
             loadedConfig.TWITCH_CLIENT_ID = process.env.TWITCH_CLIENT_ID;
-            loadedConfig.TWITCH_CLIENT_SECRET = process.env.TWITCH_CLIENT_SECRET;
+            loadedConfig.TWITCH_CLIENT_SECRET = process.env.TWITCH_CLIENT_SECRET; // Adicionado: Certifique-se que está aqui
             loadedConfig.TWITCH_USER_LOGIN = process.env.TWITCH_USER_LOGIN;
             loadedConfig.XBOX_API_KEY = process.env.XBOX_API_KEY;
             loadedConfig.XBOX_GAMERTAG = process.env.XBOX_GAMERTAG;
-            loadedConfig.WEB_PANEL_SECRET = process.env.WEB_PANEL_SECRET;
+            loadedConfig.WEB_PANEL_SECRET = process.env.WEB_PANEL_SECRET; // Garante que o webpanel tenha acesso
 
             // Novas configurações para a memória de jogos e IA
             loadedConfig.GAMES_MEMORY_FILE = 'memory/jogos_recentes.json'; // Caminho do arquivo JSON
             loadedConfig.MAX_GAMES_PER_PLATFORM = 5; // Limite de jogos por plataforma
-            // REMOVIDO: loadedConfig.APIFREELLM_ENDPOINT = 'https://apifreellm.com/api/chat'; // Endpoint da API FreeLLM
+            loadedConfig.APIFREELLM_ENDPOINT = 'https://apifreellm.com/api/chat'; // Endpoint da API FreeLLM
             // --- FIM MODIFICAÇÃO ---
 
             return loadedConfig;
@@ -244,6 +245,8 @@ class TwitchBot {
     async initializeGenerativeAILayer() {
         console.log('Inicializando Camada 4: IA Generativa...');
 
+        // A ApiFreeLLM não requer uma chave API, então esta verificação não é mais necessária.
+        // Se você planeja usar outras IAs no futuro que exigem chaves, pode adaptar esta lógica.
         // Criar módulo de IA generativa
         // --- MODIFICAÇÃO: Passa this.gameMemoryService para o construtor da IA ---
         this.generativeAI = new GenerativeAI(this.config, this.twitchClient, this.memoryManager, this.gameMemoryService); 
@@ -277,7 +280,7 @@ class TwitchBot {
             // Anunciar clip no chat se não for simulado
             if (!clip.simulated) {
                 this.config.twitch.channels.forEach(channel => {
-                    this.twitchClient.say(channel, `🎉 Novo clip criado: ${clip.title}! ${clip.url}`);
+                    this.twitchClient.say(channel, `�� Novo clip criado: ${clip.title}! ${clip.url}`);
                 });
             }
         });
