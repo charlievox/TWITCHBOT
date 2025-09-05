@@ -1,0 +1,46 @@
+{
+  "name": "twitch-bot",
+  "version": "1.0.0",
+  "description": "Bot completo para Twitch com IA generativa, observação de stream, clipping automático e painel de controle web",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js",
+    "test": "echo "Error: no test specified" && exit 1"
+  },
+  "keywords": [
+    "twitch",
+    "bot",
+    "ai",
+    "generative",
+    "stream",
+    "clip",
+    "chat",
+    "automation"
+  ],
+  "author": "Manus AI",
+  "license": "MIT",
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "axios": "^1.11.0",
+    "cors": "^2.8.5",
+    "crypto": "^1.0.1",
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0",
+    "openai": "^5.16.0",
+    "pg": "^8.16.3",
+    "sqlite3": "^5.1.7",
+    "tmi.js": "^1.8.5"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/twitch-bot.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-username/twitch-bot/issues"
+  },
+  "homepage": "https://github.com/your-username/twitch-bot#readme"
+}

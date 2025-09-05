@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel de Controle do Bot Twitch</title>
+    <style>
+        /* Variáveis CSS para cores da Twitch */
+        :root {
+            --twitch-purple: #9147FF;
+            --twitch-dark-purple: #6441A4;
+            --twitch-light-purple: #BF94FF;
+            --twitch-blue: #00A3FF; /* Para botões de navegação */
+            --twitch-green: #00FF7F; /* Para sucesso/ativo */
+            --twitch-red: #FF4500; /* Para erro/inativo */
+
+            --bg-dark: #0e0e10; /* Fundo principal */
+            --bg-medium: #18181b; /* Fundo dos cards */
+            --bg-light: #2a2a2e; /* Fundo de elementos internos */
+            
+            --text-light: #e0e0e0;
+            --text-medium: #a0a0a0;
+            --border-color: #3a3a3e;
+            --border-dashed: #2a2a2e;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif; /* Fonte moderna */
+            margin: 0;
+            padding: 20px;
+            background-color: var(--bg-dark);
+            color: var(--text-light);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background-color: var(--bg-medium);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4);
+        }
+
+        h1 {
+            color: var(--twitch-purple);
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.8em;
+            letter-spacing: 1px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        h2 {
+            color: var(--twitch-light-purple);
+            margin-top: 30px;
+            margin-bottom: 15px;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 10px;
+            font-size: 1.8em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: var(--bg-light);
+            border-radius: 10px;
+            box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px dashed var(--border-dashed);
+        }
+        .status-item:last-child {
+            border-bottom: none;
+        }
+
+        .status-label {
+            font-weight: bold;
+            color: var(--text-light);
+            font-size: 1.1em;
+        }
+
+        .status-value {
+            font-weight: bold;
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 0.95em;
+        }
+        .status-value.connected, .status-value.active {
+            background-color: var(--twitch-green);
+            color: var(--bg-dark);
+        }
+        .status-value.disconnected, .status-value.inactive {
+            background-color: var(--twitch-red);
+            color: white;
+        }
+        .status-value.loading {
+            background-color: var(--twitch-blue);
+            color: white;
+        }
+
+        .feature-control {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px dashed var(--border-dashed);
+        }
+        .feature-control:last-child {
+            border-bottom: none;
+        }
+        .feature-control span {
+            font-size: 1.1em;
+        }
+
+        .toggle-button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: bold;
+            transition: background-color 0.3s ease, transform 0.1s ease;
+            min-width: 120px;
+            text-align: center;
+        }
+        .toggle-button.active {
+            background-color: var(--twitch-green);
+            color: var(--bg-dark);
+        }
+        .toggle-button.inactive {
+            background-color: var(--twitch-red);
+            color: white;
+        }
+        .toggle-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        .toggle-button:active {
+            transform: translateY(0);
+            box-shadow: none;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: var(--text-light);
+        }
+
+        input[type="password"], input[type="range"], textarea {
+            width: calc(100% - 24px);
+            padding: 12px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background-color: var(--bg-dark);
+            color: var(--text-light);
+            box-sizing: border-box;
+            font-size: 1em;
+        }
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+        
+        /* Estilo para sliders */
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 8px;
+            background: var(--border-color);
+            outline: none;
+            opacity: 0.7;
+            -webkit-transition: .2s;
+            transition: opacity .2s;
+            margin-bottom: 10px;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--twitch-purple);
+            cursor: pointer;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--twitch-purple);
+            cursor: pointer;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+        }
+        .config-item {
+            margin-bottom: 15px;
+        }
+        .config-item span {
+            font-weight: bold;
+            color: var(--twitch-light-purple);
+        }
+
+        .message {
+            margin-top: 25px;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 1.1em;
+            animation: fadeInOut 5s forwards;
+        }
+        .message.success {
+            background-color: var(--twitch-green);
+            color: var(--bg-dark);
+        }
+        .message.error {
+            background-color: var(--twitch-red);
+            color: white;
+        }
+
+        .api-key-section {
+            background-color: var(--bg-light);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .api-key-section p {
+            font-size: 0.9em;
+            color: var(--text-medium);
+            margin-top: 0;
+        }
+        .api-key-section .btn-clear {
+            background-color: var(--border-color);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            align-self: flex-end; /* Alinha o botão à direita */
+            transition: background-color 0.3s ease;
+        }
+        .api-key-section .btn-clear:hover {
+            background-color: #555;
+        }
+
+        /* Grid para estatísticas de gameplay */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 15px;
+            text-align: center;
+        }
+        .stat-item {
+            background-color: var(--bg-dark);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .stat-value {
+            font-size: 2.2em;
+            font-weight: bold;
+            color: var(--twitch-purple);
+            display: block;
+            margin-bottom: 5px;
+        }
+        .stat-label {
+            font-size: 0.9em;
+            color: var(--text-medium);
+        }
+
+        /* Clips e Momentos */
+        .clips-header, .filters-section {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 15px;
+        }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: bold;
+            transition: background-color 0.3s ease;
+        }
+        .btn-primary {
+            background-color: var(--twitch-purple);
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: var(--twitch-dark-purple);
+        }
+        .btn-secondary {
+            background-color: var(--border-color);
+            color: white;
+        }
+        .btn-secondary:hover {
+            background-color: #555;
+        }
+
+        .clips-list, .moments-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .clips-list li, .moments-list li {
+            background-color: var(--bg-dark);
+            padding: 12px 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.95em;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+        }
+        .no-data {
+            text-align: center;
+            color: var(--text-medium);
+            font-style: italic;
+            padding: 15px;
+        }
+
+        /* Estilo para botões de navegação */
+        .nav-button {
+            display: block;
+            width: 100%;
+            padding: 12px 20px;
+            margin-bottom: 10px;
+            border: none;
+            border-radius: 6px;
+            background-color: var(--twitch-blue);
+            color: white;
+            font-size: 1.1em;
+            font-weight: bold;
+            text-align: center;
+            text-decoration: none;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.1s ease;
+        }
+        .nav-button:hover {
+            background-color: #008ae6;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        .nav-button:active {
+            transform: translateY(0);
+            box-shadow: none;
+        }
+
+        /* Animação para mensagens */
+        @keyframes fadeInOut {
+            0% { opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 Painel de Controle do Bot Twitch</h1>
+
+        <div class="api-key-section section">
+            <label for="apiKey">Chave de Acesso (API Key):</label>
+            <input type="password" id="apiKey" placeholder="Insira sua chave de acesso aqui">
+            <button id="clearApiKeyBtn" class="btn-clear">Limpar Chave</button>
+            <p>Necessária para ativar/desativar funcionalidades e realizar outras operações de escrita. A chave será lembrada no seu navegador.</p>
+        </div>
+
+        <div class="section">
+            <h2>📊 Status do Bot</h2>
+            <div class="status-item">
+                <span class="status-label">Conectado à Twitch:</span>
+                <span id="twitchConnectionStatus" class="status-value loading">Carregando...</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Canais Monitorados:</span>
+                <span id="channelsList" class="status-value loading">Carregando...</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Tempo de Atividade (Uptime):</span>
+                <span id="uptimeStatus" class="status-value loading">Carregando...</span>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🛠️ Controle de Funcionalidades</h2>
+            <div class="feature-control">
+                <span>Comandos de Chat:</span>
+                <button id="toggleChatCommands" class="toggle-button loading">Carregando...</button>
+            </div>
+            <div class="feature-control">
+                <span>Eventos Twitch:</span>
+                <button id="toggleTwitchEvents" class="toggle-button loading">Carregando...</button>
+            </div>
+            <div class="feature-control">
+                <span>Observador de Stream:</span>
+                <button id="toggleStreamObserver" class="toggle-button loading">Carregando...</button>
+            </div>
+            <div class="feature-control">
+                <span>IA Generativa:</span>
+                <button id="toggleGenerativeAI" class="toggle-button loading">Carregando...</button>
+            </div>
+            <div class="feature-control">
+                <span>Clipping Automático:</span>
+                <button id="toggleAutoClipping" class="toggle-button loading">Carregando...</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🎛️ Configurações</h2>
+            <div class="config-item">
+                <label for="aiIntensity">Intensidade da IA:</label>
+                <input type="range" id="aiIntensity" min="0" max="1" step="0.1" value="0.5">
+                <span id="aiIntensityValue">0.5</span>
+            </div>
+            <div class="config-item">
+                <label for="observerSensitivity">Sensibilidade do Observador:</label>
+                <input type="range" id="observerSensitivity" min="0" max="1" step="0.1" value="0.5">
+                <span id="observerSensitivityValue">0.5</span>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>⚙️ Configurações Detalhadas</h2>
+            <a href="/ai-config" class="nav-button">Configurar Prompt da IA</a>
+            <!-- Futuramente, outros links de configuração podem vir aqui -->
+        </div>
+
+        <div class="section">
+            <h2>🎮 Estatísticas de Gameplay</h2>
+            <div class="stats-grid" id="gameplayStats">
+                <div class="stat-item">
+                    <span class="stat-value" id="kills">0</span>
+                    <span class="stat-label">Kills</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value" id="deaths">0</span>
+                    <span class="stat-label">Deaths</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value" id="wins">0</span>
+                    <span class="stat-label">Vitórias</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value" id="combos">0</span>
+                    <span class="stat-label">Combos</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🎬 Clips Recentes</h2>
+            <div class="clips-header">
+                <button id="createManualClipBtn" class="btn btn-primary">Criar Clip Manual</button>
+            </div>
+            <ul class="clips-list" id="clipsList">
+                <p class="no-data">Nenhum clip encontrado</p>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>🚫 Filtros de Palavras</h2>
+            <div class="filters-section">
+                <textarea id="bannedWords" placeholder="Digite palavras banidas, uma por linha..." rows="4"></textarea>
+                <button id="updateFiltersBtn" class="btn btn-secondary">Atualizar Filtros</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>✨ Momentos Críticos Recentes</h2>
+            <ul class="moments-list" id="momentsList">
+                <p class="no-data">Nenhum momento crítico detectado</p>
+            </ul>
+        </div>
+
+        <div id="message" class="message" style="display: none;"></div>
+    </div>
+
+    <script>
+        const API_KEY_STORAGE_KEY = 'twitchBotApiKey'; // Chave para localStorage
+
+        const apiKeyInput = document.getElementById('apiKey');
+        const clearApiKeyBtn = document.getElementById('clearApiKeyBtn');
+        const twitchConnectionStatus = document.getElementById('twitchConnectionStatus');
+        const channelsList = document.getElementById('channelsList');
+        const uptimeStatus = document.getElementById('uptimeStatus');
+        const toggleChatCommandsButton = document.getElementById('toggleChatCommands');
+        const toggleTwitchEventsButton = document.getElementById('toggleTwitchEvents');
+        const toggleStreamObserverButton = document.getElementById('toggleStreamObserver');
+        const toggleGenerativeAIButton = document.getElementById('toggleGenerativeAI');
+        const toggleAutoClippingButton = document.getElementById('toggleAutoClipping');
+        const aiIntensitySlider = document.getElementById('aiIntensity');
+        const aiIntensityValueSpan = document.getElementById('aiIntensityValue');
+        const observerSensitivitySlider = document.getElementById('observerSensitivity');
+        const observerSensitivityValueSpan = document.getElementById('observerSensitivityValue');
+        const killsSpan = document.getElementById('kills');
+        const deathsSpan = document.getElementById('deaths');
+        const winsSpan = document.getElementById('wins');
+        const combosSpan = document.getElementById('combos');
+        const createManualClipBtn = document.getElementById('createManualClipBtn');
+        const clipsList = document.getElementById('clipsList');
+        const bannedWordsTextarea = document.getElementById('bannedWords');
+        const updateFiltersBtn = document.getElementById('updateFiltersBtn');
+        const momentsList = document.getElementById('momentsList');
+        const messageDiv = document.getElementById('message');
+
+        let currentBotStatus = {}; // Para armazenar o status atual do bot
+
+        // --- Funções de Fetch para APIs ---
+
+        async function fetchData(url, method = 'GET', body = null) {
+            const options = {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            };
+
+            if (method !== 'GET' && method !== 'HEAD') {
+                const apiKey = apiKeyInput.value;
+                if (!apiKey) {
+                    showMessage('Por favor, insira a Chave de Acesso para realizar esta operação.', 'error');
+                    throw new Error('API Key ausente.');
+                }
+                options.headers['x-api-key'] = apiKey;
+                if (body) {
+                    options.body = JSON.stringify(body);
+                }
+            }
+
+            try {
+                const response = await fetch(url, options);
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.message || data.error || `Erro na requisição para ${url}`);
+                }
+                return data;
+            } catch (error) {
+                console.error(`Erro na requisição para ${url}:`, error);
+                throw error; // Re-lança o erro para ser tratado pela função chamadora
+            }
+        }
+
+        async function fetchBotStatus() {
+            try {
+                const status = await fetchData('/api/status');
+                currentBotStatus = status;
+
+                twitchConnectionStatus.textContent = status.isConnected ? 'Conectado' : 'Desconectado';
+                twitchConnectionStatus.className = `status-value ${status.isConnected ? 'connected' : 'disconnected'}`;
+                channelsList.textContent = status.channels.join(', ');
+                uptimeStatus.textContent = formatUptime(status.uptime);
+
+                // Atualiza o estado dos botões de toggle
+                updateToggleButton(toggleChatCommandsButton, status.features.chatCommands, 'chatCommands');
+                updateToggleButton(toggleTwitchEventsButton, status.features.twitchEvents, 'twitchEvents');
+                updateToggleButton(toggleStreamObserverButton, status.features.streamObserver, 'streamObserver');
+                updateToggleButton(toggleGenerativeAIButton, status.features.generativeAI, 'generativeAI');
+                updateToggleButton(toggleAutoClippingButton, status.features.autoClipping, 'autoClipping');
+
+            } catch (error) {
+                console.error('Erro ao buscar status do bot:', error);
+                showMessage('Erro ao carregar o status do bot.', 'error');
+            }
+        }
+
+        async function fetchGameplayStats() {
+            try {
+                const stats = await fetchData('/api/gameplay/stats');
+                killsSpan.textContent = stats.kills || 0;
+                deathsSpan.textContent = stats.deaths || 0;
+                winsSpan.textContent = stats.wins || 0;
+                combosSpan.textContent = stats.combos || 0;
+            } catch (error) {
+                console.error('Erro ao buscar estatísticas de gameplay:', error);
+            }
+        }
+
+        async function fetchRecentClips() {
+            try {
+                const clips = await fetchData('/api/clips');
+                clipsList.innerHTML = ''; // Limpa a lista
+                if (clips && clips.length > 0) {
+                    clips.forEach(clip => {
+                        const li = document.createElement('li');
+                        const title = clip.title || 'Clip sem título';
+                        li.textContent = `${title} (${new Date(clip.timestamp).toLocaleString()})`;
+                        clipsList.appendChild(li);
+                    });
+                } else {
+                    clipsList.innerHTML = '<p class="no-data">Nenhum clip encontrado</p>';
+                }
+            } catch (error) {
+                console.error('Erro ao buscar clips recentes:', error);
+                clipsList.innerHTML = '<p class="no-data">Erro ao carregar clips.</p>';
+            }
+        }
+
+        async function fetchBannedWords() {
+            try {
+                const words = await fetchData('/api/filters/words');
+                bannedWordsTextarea.value = words.join('\n');
+            } catch (error) {
+                console.error('Erro ao buscar palavras banidas:', error);
+                showMessage('Erro ao carregar filtros de palavras.', 'error');
+            }
+        }
+
+        async function fetchCriticalMoments() {
+            try {
+                const moments = await fetchData('/api/gameplay/moments');
+                momentsList.innerHTML = ''; // Limpa a lista
+                if (moments && moments.length > 0) {
+                    moments.forEach(moment => {
+                        const li = document.createElement('li');
+                        // CORREÇÃO: Usar 'moment.name' ou 'moment.description'
+                        // Seu log indica que a propriedade é 'Momento crítico adicionado: Jogada Perfeita!'
+                        // Isso sugere que a propriedade no objeto 'moment' deve ser 'description' ou 'name'.
+                        // Vamos tentar 'description' primeiro, pois é mais comum para texto descritivo.
+                        const momentDescription = moment.description || moment.name || 'Momento Crítico Desconhecido';
+                        li.textContent = `${momentDescription} (${new Date(moment.timestamp).toLocaleString()})`;
+                        momentsList.appendChild(li);
+                    });
+                } else {
+                    momentsList.innerHTML = '<p class="no-data">Nenhum momento crítico detectado</p>';
+                }
+            } catch (error) {
+                console.error('Erro ao buscar momentos críticos:', error);
+                momentsList.innerHTML = '<p class="no-data">Erro ao carregar momentos críticos.</p>';
+            }
+        }
+
+        async function fetchConfigAndSetSliders() {
+            try {
+                const config = await fetchData('/api/config'); // Assumindo que este endpoint retorna todas as configs
+                const aiIntensity = config.ai?.intensity !== undefined ? config.ai.intensity : 0.5;
+                const observerSensitivity = config.observer?.sensitivity !== undefined ? config.observer.sensitivity : 0.5;
+
+                aiIntensitySlider.value = aiIntensity;
+                aiIntensityValueSpan.textContent = aiIntensity;
+                observerSensitivitySlider.value = observerSensitivity;
+                observerSensitivityValueSpan.textContent = observerSensitivity;
+            } catch (error) {
+                console.error('Erro ao buscar configurações para sliders:', error);
+                showMessage('Erro ao carregar configurações de IA/Observador.', 'error');
+            }
+        }
+
+        // --- Funções de Ação ---
+
+        async function toggleLayer(layer, enabled) {
+            try {
+                const data = await fetchData(`/api/layers/${layer}/toggle`, 'POST', { enabled: enabled });
+                showMessage(data.message, 'success');
+                fetchBotStatus(); // Atualiza o status após a alteração
+            } catch (error) {
+                console.error(`Erro ao alternar camada ${layer}:`, error);
+                showMessage(error.message || 'Erro ao alternar funcionalidade.', 'error');
+            }
+        }
+
+        async function updateAIIntensity() {
+            const intensity = parseFloat(aiIntensitySlider.value);
+            aiIntensityValueSpan.textContent = intensity;
+            try {
+                const data = await fetchData('/api/ai/intensity', 'POST', { intensity: intensity });
+                showMessage(data.message, 'success');
+            } catch (error) {
+                console.error('Erro ao atualizar intensidade da IA:', error);
+                showMessage(error.message || 'Erro ao atualizar intensidade da IA.', 'error');
+            }
+        }
+
+        async function updateObserverSensitivity() {
+            const sensitivity = parseFloat(observerSensitivitySlider.value);
+            observerSensitivityValueSpan.textContent = sensitivity;
+            try {
+                const data = await fetchData('/api/observer/sensitivity', 'POST', { sensitivity: sensitivity });
+                showMessage(data.message, 'success');
+            } catch (error) {
+                console.error('Erro ao atualizar sensibilidade do observador:', error);
+                showMessage(error.message || 'Erro ao atualizar sensibilidade do observador.', 'error');
+            }
+        }
+
+        async function createManualClip() {
+            const clipTitle = prompt("Digite um título para o clip manual:");
+            if (clipTitle === null) return; // Usuário cancelou
+
+            try {
+                const data = await fetchData('/api/clips/manual', 'POST', { title: clipTitle });
+                showMessage(data.message, 'success');
+                fetchRecentClips(); // Atualiza a lista de clips
+            } catch (error) {
+                console.error('Erro ao criar clip manual:', error);
+                showMessage(error.message || 'Erro ao criar clip manual.', 'error');
+            }
+        }
+
+        async function updateFilters() {
+            const words = bannedWordsTextarea.value.split('\n').map(word => word.trim()).filter(word => word.length > 0);
+            try {
+                const data = await fetchData('/api/filters/words', 'POST', { words: words });
+                showMessage(data.message, 'success');
+            } catch (error) {
+                console.error('Erro ao atualizar filtros:', error);
+                showMessage(error.message || 'Erro ao atualizar filtros.', 'error');
+            }
+        }
+
+        // --- Funções Auxiliares ---
+
+        function formatUptime(ms) {
+            const seconds = Math.floor(ms / 1000);
+            const minutes = Math.floor(seconds / 60);
+            const hours = Math.floor(minutes / 60);
+            const days = Math.floor(hours / 24);
+
+            const s = seconds % 60;
+            const m = minutes % 60;
+            const h = hours % 24;
+
+            let uptimeString = '';
+            if (days > 0) uptimeString += `${days}d `;
+            if (h > 0) uptimeString += `${h}h `;
+            if (m > 0) uptimeString += `${m}m `;
+            uptimeString += `${s}s`;
+            return uptimeString.trim();
+        }
+
+        function updateToggleButton(buttonElement, isActive, layerName) {
+            buttonElement.textContent = isActive ? 'Desativar' : 'Ativar';
+            buttonElement.className = `toggle-button ${isActive ? 'active' : 'inactive'}`;
+            // Para 'chatCommands' e 'twitchEvents', o backend não tem um toggle direto no webPanel.js
+            // Eles são controlados pela configuração geral do bot.
+            // Se o backend não tiver uma API para toggle individual, estes botões apenas refletirão o status.
+            // Se você quiser que eles sejam funcionais, precisará implementar a lógica no webPanel.js e no bot.
+            // Por enquanto, eles apenas refletem o status.
+            if (layerName === 'chatCommands' || layerName === 'twitchEvents') {
+                buttonElement.onclick = () => showMessage(`Controle para ${layerName} não implementado via API ainda.`, 'info');
+            } else {
+                buttonElement.onclick = () => toggleLayer(layerName, !isActive);
+            }
+        }
+
+        function showMessage(text, type) {
+            messageDiv.textContent = text;
+            messageDiv.className = `message ${type}`;
+            messageDiv.style.display = 'block';
+            messageDiv.style.animation = 'none';
+            void messageDiv.offsetWidth;
+            messageDiv.style.animation = 'fadeInOut 5s forwards';
+            
+            setTimeout(() => {
+                messageDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        // --- Persistência da Chave de API ---
+        function saveApiKey() {
+            localStorage.setItem(API_KEY_STORAGE_KEY, apiKeyInput.value);
+        }
+
+        function loadApiKey() {
+            const storedKey = localStorage.getItem(API_KEY_STORAGE_KEY);
+            if (storedKey) {
+                apiKeyInput.value = storedKey;
+            }
+        }
+
+        function clearApiKey() {
+            apiKeyInput.value = '';
+            localStorage.removeItem(API_KEY_STORAGE_KEY);
+            showMessage('Chave de API limpa do navegador.', 'info');
+        }
+
+        // --- Event Listeners ---
+        createManualClipBtn.addEventListener('click', createManualClip);
+        updateFiltersBtn.addEventListener('click', updateFilters);
+        aiIntensitySlider.addEventListener('change', updateAIIntensity);
+        observerSensitivitySlider.addEventListener('change', updateObserverSensitivity);
+        apiKeyInput.addEventListener('input', saveApiKey); // Salva a chave ao digitar
+        clearApiKeyBtn.addEventListener('click', clearApiKey); // Limpa a chave
+
+        // --- Carregamento Inicial e Atualização Periódica ---
+        async function loadAllData() {
+            await fetchBotStatus();
+            await fetchGameplayStats();
+            await fetchRecentClips();
+            await fetchBannedWords();
+            await fetchCriticalMoments();
+            await fetchConfigAndSetSliders(); // Carrega configs para sliders
+        }
+
+        // Carrega a chave de API ao iniciar
+        loadApiKey();
+        // Carrega todos os dados iniciais
+        loadAllData();
+        // Atualiza todos os dados a cada 10 segundos
+        setInterval(loadAllData, 10000);
+    </script>
+</body>
+</html>

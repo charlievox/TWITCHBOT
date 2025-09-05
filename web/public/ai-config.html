@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configuração da IA</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #1a1a1d;
+            color: #e0e0e0;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #2a2a2e;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        h1 {
+            color: #9a67ea;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+        input[type="password"] { /* Estilo para o campo de senha */
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #555;
+            border-radius: 4px;
+            background-color: #3a3a3e;
+            color: #e0e0e0;
+            box-sizing: border-box;
+        }
+        textarea {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 20px;
+            border: 1px solid #555;
+            border-radius: 4px;
+            background-color: #3a3a3e;
+            color: #e0e0e0;
+            resize: vertical;
+            min-height: 150px;
+            box-sizing: border-box; /* Garante que padding e border sejam incluídos na largura total */
+        }
+        button {
+            background-color: #9a67ea;
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s ease;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #7a4bbd;
+        }
+        button.clear-button {
+            background-color: #dc3545; /* Vermelho para indicar ação de limpar */
+        }
+        button.clear-button:hover {
+            background-color: #c82333;
+        }
+        .message {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .message.success {
+            background-color: #28a745;
+            color: white;
+        }
+        .message.error {
+            background-color: #dc3545;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Configuração do Prompt da IA</h1>
+        <p>Defina a personalidade e as instruções para a IA do seu bot. Este prompt será usado para guiar as respostas da IA.</p>
+        
+        <label for="apiKey">Chave de Acesso (API Key):</label>
+        <input type="password" id="apiKey" placeholder="Insira sua chave de acesso aqui">
+
+        <label for="aiPrompt">Prompt de Sistema da IA:</label>
+        <textarea id="aiPrompt" placeholder="Ex: Você é um bot de Twitch chamado Nicks. Suas respostas devem ser curtas, diretas e sempre terminar com a palavra 'Brincar!'. Você adora Bob Esponja e sempre tenta incluir algo sobre ele. Seja divertido e encorajador."></textarea>
+        <button id="savePrompt">Salvar Prompt</button>
+        <button id="clearPrompt" class="clear-button">Limpar Prompt</button>
+        <div id="message" class="message" style="display: none;"></div>
+    </div>
+
+    <script>
+        const aiPromptTextarea = document.getElementById('aiPrompt');
+        const apiKeyInput = document.getElementById('apiKey'); // Novo input para a chave
+        const savePromptButton = document.getElementById('savePrompt');
+        const clearPromptButton = document.getElementById('clearPrompt');
+        const messageDiv = document.getElementById('message');
+
+        async function fetchPrompt() {
+            try {
+                const response = await fetch('/api/ai/prompt');
+                const data = await response.json();
+                aiPromptTextarea.value = data.prompt;
+            } catch (error) {
+                console.error('Erro ao buscar prompt:', error);
+                showMessage('Erro ao carregar o prompt.', 'error');
+            }
+        }
+
+        async function savePrompt(promptContent) {
+            const apiKey = apiKeyInput.value; // Pega a chave do input
+
+            if (!apiKey) {
+                showMessage('Por favor, insira a Chave de Acesso.', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/ai/prompt', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-api-key': apiKey // Envia a chave no cabeçalho
+                    },
+                    body: JSON.stringify({ prompt: promptContent })
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    showMessage(data.message, 'success');
+                } else {
+                    showMessage(data.message || data.error || 'Erro ao salvar o prompt.', 'error');
+                }
+            } catch (error) {
+                console.error('Erro ao salvar prompt:', error);
+                showMessage('Erro de comunicação com o servidor.', 'error');
+            }
+        }
+
+        function showMessage(text, type) {
+            messageDiv.textContent = text;
+            messageDiv.className = `message ${type}`;
+            messageDiv.style.display = 'block';
+            setTimeout(() => {
+                messageDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        savePromptButton.addEventListener('click', () => {
+            savePrompt(aiPromptTextarea.value);
+        });
+
+        clearPromptButton.addEventListener('click', () => {
+            if (confirm('Tem certeza que deseja limpar o prompt da IA? Isso restaurará o prompt padrão do bot.')) {
+                aiPromptTextarea.value = ''; // Limpa o campo visualmente
+                savePrompt(''); // Envia uma string vazia para o backend
+            }
+        });
+
+        // Carregar o prompt ao carregar a página
+        fetchPrompt();
+    </script>
+</body>
+</html>
