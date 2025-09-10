@@ -4,9 +4,10 @@
  */
 
 class ChatCommands {
-    constructor(client, config) {
+    constructor(client, config, autoClipper) {
         this.client = client;
         this.config = config;
+        this.autoClipper = autoClipper; // Novo parâmetro
         this.startTime = Date.now();
         this.currentGame = "Jogo não detectado";
         
@@ -14,7 +15,8 @@ class ChatCommands {
             help: this.helpCommand.bind(this),
             uptime: this.uptimeCommand.bind(this),
             game: this.gameCommand.bind(this),
-            so: this.shoutoutCommand.bind(this)
+            so: this.shoutoutCommand.bind(this),
+            clip: this.clipCommand.bind(this)
         };
     }
 
@@ -85,7 +87,32 @@ class ChatCommands {
     updateCurrentGame(gameName) {
         this.currentGame = gameName || "Jogo não detectado";
     }
+
+    /**
+     * Comando !clip - Cria um clip manual
+     */
+    async clipCommand(channel, userstate, args) {
+        if (!this.autoClipper) {
+            this.client.say(channel, `@${userstate.username} O sistema de clipping automático não está ativo.`);
+            return;
+        }
+
+        // Opcional: verificar permissões (moderador/streamer)
+        // if (!userstate.mod && userstate["room-id"] !== userstate["user-id"]) {
+        //     this.client.say(channel, `@${userstate.username} Você não tem permissão para usar este comando.`);
+        //     return;
+        // }
+
+        const title = args.join(" ").trim() || `Clip de ${userstate.username}`; // Título do clip
+
+        try {
+            await this.autoClipper.createManualClip(title);
+            this.client.say(channel, `@${userstate.username} Clip manual solicitado: "${title}"!`);
+        } catch (error) {
+            console.error(`Erro ao criar clip manual para ${userstate.username}:`, error);
+            this.client.say(channel, `@${userstate.username} Ocorreu um erro ao tentar criar o clip.`);
+        }
+    }
 }
 
 module.exports = ChatCommands;
-

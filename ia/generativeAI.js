@@ -1,31 +1,55 @@
-const axios = require('axios');
+// ia/generativeAI.js
 
 /**
  * Módulo de IA Generativa
- * Gera respostas em tempo real, naturais e contextuais usando ApiFreeLLM.com
+ * Gera respostas em tempo real, naturais e contextuais usando OpenAI
  */
+
+const axios = require('axios'); // Mantido caso seja usado em outro lugar, mas não para OpenAI
+const OpenAI = require('openai'); // Importa a biblioteca OpenAI
+
+// REMOVA ESTA LINHA: const gameMemoryService = require('../modules/gameMemoryService');
+// REMOVA ESTA LINHA: const gameMemoryService = require('../modules/gameMemoryService');
+// REMOVA ESTA LINHA: const GameMemoryServiceClass = require('../modules/gameMemoryService'); 
+// Essas linhas são de debug e não são necessárias no código final.
+
 class GenerativeAI {
-    constructor(config, twitchClient) {
-        this.config = config;
+    // --- MODIFICAÇÃO: Adiciona gameMemoryService como parâmetro no construtor ---
+    constructor(config, twitchClient, memoryManager = null, gameMemoryService = null) { 
+        this.config = config; 
         this.twitchClient = twitchClient;
-        
-        // Configuração para ApiFreeLLM.com
-        // Não é necessária chave API para o acesso gratuito e ilimitado
-        this.apiFreeLlmUrl = "https://apifreellm.com/api/chat";
-        
+        this.memoryManager = memoryManager; 
+        this.gameMemoryService = gameMemoryService; // Armazena a instância do GameMemoryService
+
+        // --- MODIFICAÇÃO: Inicializa o cliente OpenAI usando a API Key do ambiente ---
+        // A chave 'OPENAI_API_KEY' deve estar configurada no seu arquivo .env
+        if (!process.env.OPENAI_API_KEY) {
+            console.error('ERRO: Variável de ambiente OPENAI_API_KEY não encontrada. A IA não funcionará.');
+            // Você pode optar por lançar um erro ou desativar a IA aqui
+            this.isActive = false; 
+            this.openaiClient = null;
+        } else {
+            this.openaiClient = new OpenAI({
+                apiKey: process.env.OPENAI_API_KEY
+            });
+        }
+        // --- FIM MODIFICAÇÃO ---
+
+        // REMOVIDO: this.apiFreeLlmUrl = this.config.APIFREELLM_ENDPOINT || "https://apifreellm.com/api/chat"; 
         this.conversationHistory = [];
         this.gameplayContext = {
             currentGame: 'Jogo não detectado',
             recentEvents: [],
             stats: {}
         };
-        
         this.intensity = this.config.ai?.intensity || 0.5;
-        this.isActive = false;
+        this.isActive = false; // Será ativado em activate()
         this.responseQueue = [];
         this.lastResponseTime = 0;
-        this.minResponseInterval = 30000; // 30 segundos entre respostas automáticas
-        
+        this.minResponseInterval = 60000; // 60 segundos entre respostas automáticas
+
+        // O prompt de sistema será carregado do memoryManager
+        this.systemPrompt = "Você é um bot de Twitch prestativo e divertido."; // Fallback inicial
         this.personality = {
             style: 'divertido e empático',
             traits: ['criativo', 'encorajador', 'humorístico', 'respeitoso'],
@@ -34,20 +58,53 @@ class GenerativeAI {
     }
 
     /**
+     * Carrega o prompt de sistema do banco de dados via memoryManager.
+     */
+    async loadSystemPrompt() {
+        if (!this.memoryManager) {
+            console.warn('MemoryManager não configurado para IA Generativa. Usando prompt padrão.');
+            return;
+        }
+        try {
+            const dbPrompt = await this.memoryManager.getConfig('ai_system_prompt');
+            if (dbPrompt) {
+                this.systemPrompt = dbPrompt;
+                console.log('Prompt de sistema da IA carregado do banco de dados.');
+            } else {
+                console.log('Nenhum prompt de sistema encontrado no banco de dados para IA. Usando prompt padrão.');
+            }
+        } catch (error) {
+            console.error('Erro ao carregar prompt de sistema da IA do banco de dados:', error);
+            console.log('Usando prompt de sistema padrão devido ao erro.');
+        }
+    }
+
+    /**
      * Ativa a IA generativa
      */
-    activate() {
+    async activate() { // Tornar async para aguardar loadSystemPrompt
         if (this.isActive) {
             console.log('IA Generativa já está ativa');
             return;
         }
+        // --- MODIFICAÇÃO: Verifica se o cliente OpenAI foi inicializado ---
+        if (!this.openaiClient) {
+            console.error('Não foi possível ativar a IA Generativa: Cliente OpenAI não inicializado (API Key ausente ou inválida).');
+            return;
+        }
+        // --- FIM MODIFICAÇÃO ---
+
         console.log('Ativando IA Generativa...');
+        await this.loadSystemPrompt(); // Carrega o prompt ao ativar
         this.isActive = true;
-        // Processar fila de respostas a cada 5 segundos (se necessário, para eventos de gameplay)
+
+        // Processar fila de respostas a cada 5 segundos
         this.responseProcessor = setInterval(() => {
             this.processResponseQueue();
         }, 5000);
-        console.log('IA Generativa ativada');
+
+        console.log('IA Generativa ativada com o prompt:');
+        console.log(this.systemPrompt); // Log do prompt carregado
     }
 
     /**
@@ -60,6 +117,7 @@ class GenerativeAI {
         }
         console.log('Desativando IA Generativa...');
         this.isActive = false;
+
         if (this.responseProcessor) {
             clearInterval(this.responseProcessor);
             this.responseProcessor = null;
@@ -68,194 +126,142 @@ class GenerativeAI {
     }
 
     /**
-     * Atualiza a intensidade da IA (frequência de respostas)
-     * @param {number} newIntensity - Valor entre 0 e 1.
+     * Processa mensagens do chat para possível resposta da IA
      */
-    updateIntensity(newIntensity) {
-        this.intensity = Math.max(0, Math.min(1, newIntensity));
-        console.log(`Intensidade da IA atualizada para: ${this.intensity}`);
-    }
+    async processChatMessage(channel, userstate, message) {
+        if (!this.isActive) return;
 
-    /**
-     * Atualiza o contexto de gameplay da IA.
-     * @param {object} gameData - Dados do jogo, como nome do jogo, eventos recentes, etc.
-     */
-    updateGameplayContext(gameData) {
-        this.gameplayContext.currentGame = gameData.game || 'Jogo não detectado';
-        this.gameplayContext.stats = { ...this.gameplayContext.stats, ...gameData.stats };
-        
-        if (gameData.event) {
-            this.gameplayContext.recentEvents.push({
-                type: gameData.event.type,
-                timestamp: Date.now(),
-                intensity: gameData.event.intensity || 0.5
-            });
-            
-            // Manter apenas os últimos 10 eventos
-            if (this.gameplayContext.recentEvents.length > 10) {
-                this.gameplayContext.recentEvents.shift();
-            }
+        // Adicionar mensagem ao histórico
+        this.addToConversationHistory(userstate.username, message);
+
+        // Verificar se deve responder
+        if (this.shouldRespond(message, userstate)) {
+            await this._generateResponseForChat(channel, userstate, message);
         }
     }
 
     /**
-     * Gera uma resposta usando a API da ApiFreeLLM.com.
-     * @param {string} userPrompt - A mensagem ou evento que a IA deve responder.
-     * @param {object} context - Contexto adicional para a construção do prompt.
-     * @returns {Promise<string|null>} A resposta gerada pela IA ou null em caso de erro.
+     * Processa eventos de gameplay para contexto
      */
-    async generateResponse(userPrompt, context = {}) {
-        if (!this.isActive) {
-            console.log('IA inativa, não gerando resposta.');
-            return null;
+    processGameplayEvent(event) {
+        if (!this.isActive) return;
+        // Adicionar evento ao contexto
+        this.gameplayContext.recentEvents.push({
+            ...event,
+            timestamp: Date.now()
+        });
+
+        // Manter apenas os últimos 10 eventos
+        if (this.gameplayContext.recentEvents.length > 10) {
+            this.gameplayContext.recentEvents.shift();
         }
-        
-        try {
-            // Constrói o prompt completo, incluindo a personalidade e o contexto
-            const fullPrompt = this.buildPrompt(userPrompt, context);
-            
-            const payload = {
-                message: fullPrompt // ApiFreeLLM.com espera um campo 'message'
-            };
+        // Salvar evento na memória (se memoryManager estiver configurado)
+        if (this.memoryManager) {
+            this.memoryManager.saveGameplayEvent(
+                event.type,
+                event.context,
+                event.intensity,
+                this.gameplayContext.currentGame
+            );
+        }
 
-            const headers = {
-                'Content-Type': 'application/json'
-            };
-
-            const response = await axios.post(this.apiFreeLlmUrl, payload, { headers, timeout: 15000 }); // Aumentado timeout para 15s
-            
-            if (response.data && response.data.response) { // ApiFreeLLM.com retorna no campo 'response'
-                let generatedText = response.data.response.trim();
-                
-                // Limpar e formatar a resposta
-                generatedText = this.cleanResponse(generatedText);
-                
-                // Adicionar à história da conversa (para contexto interno, não para a API)
-                this.conversationHistory.push({
-                    prompt: userPrompt,
-                    response: generatedText,
-                    timestamp: Date.now()
-                });
-                
-                // Manter apenas as últimas 5 interações
-                if (this.conversationHistory.length > 5) {
-                    this.conversationHistory.shift();
-                }
-                
-                return generatedText;
-            }
-            
-            return null;
-        } catch (error) {
-            console.error('Erro ao gerar resposta da IA (ApiFreeLLM):', error.response?.status || error.message);
-            // Se houver um corpo de erro na resposta, imprima-o
-            if (error.response && error.response.data) {
-                console.error('Detalhes do erro:', error.response.data);
-            }
-            return null;
+        // Gerar comentário sobre evento importante
+        if (event.intensity > 0.7) {
+            this.queueGameplayResponse(event);
         }
     }
 
     /**
-     * Constrói o prompt completo para a IA, incluindo a personalidade e o contexto.
-     * @param {string} userPrompt - A mensagem original do usuário ou evento.
-     * @param {object} context - Contexto adicional (tipo de evento, jogo atual, etc.).
-     * @returns {string} O prompt formatado para ser enviado à IA.
+     * Atualiza estatísticas de gameplay
      */
-    buildPrompt(userPrompt, context) {
-        const gameContext = context.game || this.gameplayContext.currentGame;
-        const eventType = context.eventType || 'geral';
-        
-        let systemPrompt = `Você é um bot de Twitch com personalidade ${this.personality.style}. `;
-        systemPrompt += `Suas características: ${this.personality.traits.join(', ')}. `;
-        systemPrompt += `Restrições: ${this.personality.restrictions.join(', ')}. `;
-        systemPrompt += `Mantenha respostas curtas (máximo 2 frases), seja natural e engajado com a comunidade. `;
-        systemPrompt += `Use português brasileiro e seja apropriado para todas as idades. `;
-        
-        if (gameContext !== 'Jogo não detectado') {
-            systemPrompt += `O jogo atual é ${gameContext}. `;
-        }
-
-        // Adiciona contexto específico de evento, se aplicável
-        if (eventType === 'kill') {
-            systemPrompt += `O jogador acabou de eliminar um inimigo. Comemore essa conquista! `;
-        } else if (eventType === 'death') {
-            systemPrompt += `O jogador foi eliminado. Seja encorajador e positivo. `;
-        } else if (eventType === 'win') {
-            systemPrompt += `O jogador venceu! Comemore essa vitória incrível! `;
-        } else if (eventType === 'combo') {
-            systemPrompt += `O jogador fez um combo espetacular! `;
-        } else if (eventType === 'chat_mention' && context.username) {
-            systemPrompt += `O usuário ${context.username} mencionou você no chat. Responda diretamente a ele. `;
-        }
-
-        // Adiciona histórico de conversa para manter algum contexto (se a API suportar, o que a ApiFreeLLM faz implicitamente com o prompt)
-        const history = this.conversationHistory
-            .map(entry => `Usuário: ${entry.prompt}\nVocê: ${entry.response}`)
-            .join('\n');
-        
-        let finalPrompt = systemPrompt;
-        if (history) {
-            finalPrompt += `\n\nHistórico recente:\n${history}\n\n`;
-        }
-        finalPrompt += `Mensagem/Evento: "${userPrompt}"\n\nSua resposta:`;
-
-        return finalPrompt;
+    updateGameplayStats(stats) {
+        this.gameplayContext.stats = { ...stats };
     }
 
     /**
-     * Filtra e limpa a resposta da IA.
-     * @param {string} text - O texto gerado pela IA.
-     * @returns {string} O texto limpo e formatado.
+     * Atualiza jogo atual
      */
-    cleanResponse(text) {
-        // Remover quebras de linha excessivas
-        text = text.replace(/\n+/g, ' ').trim();
-        
-        // Limitar tamanho para evitar mensagens muito longas no chat
-        if (text.length > 400) { // Reduzido para um tamanho mais adequado para chat
-            text = text.substring(0, 397) + '...';
-        }
-        
-        // Remover caracteres especiais problemáticos que não sejam emojis ou pontuação comum
-        // Mantém letras, números, espaços, pontuação básica e alguns emojis comuns de jogo/reação
-        text = text.replace(/[^\w\s\u00C0-\u017F!?.,;:()🎮🔥💪👏🎯⚡🏆]/g, '');
-        
-        return text.trim();
+    updateCurrentGame(gameName) {
+        this.gameplayContext.currentGame = gameName || 'Jogo não detectado';
     }
 
     /**
-     * Determina se a IA deve responder a um evento ou mensagem.
-     * @param {object} eventData - Dados do evento (pode ser uma mensagem de chat ou evento de gameplay).
-     * @returns {boolean} True se a IA deve responder, false caso contrário.
+     * Determina se deve responder a uma mensagem de chat
+     * (Lógica do cavalo.txt, adaptada para ser mais robusta)
      */
-    shouldRespond(eventData) {
-        if (!this.isActive) return false;
-        
-        const now = Date.now();
-        const timeSinceLastResponse = now - this.lastResponseTime;
-        
-        // Respeitar intervalo mínimo entre respostas automáticas
-        if (timeSinceLastResponse < this.minResponseInterval) {
-            return false;
-        }
-        
-        // Verificar intensidade do evento (para eventos de gameplay)
-        const eventIntensity = eventData.intensity || 0.5;
-        const threshold = 1 - this.intensity; // Quanto maior a intensidade da IA, menor o threshold para responder
-        
-        // Se for um evento de chat e o bot for mencionado, sempre responder (se ativo)
-        if (eventData.type === 'chat_mention') {
+    shouldRespond(message, userstate) {
+        // Não responder a comandos
+        if (message.startsWith(this.config.bot?.prefix || '!')) return false;
+
+        // Não responder muito frequentemente
+        const timeSinceLastResponse = Date.now() - this.lastResponseTime;
+        if (timeSinceLastResponse < this.minResponseInterval) return false;
+
+        // Responder se mencionado (nome do bot ou 'ia')
+        const botUsername = this.config.twitch.username.toLowerCase();
+        const messageLower = message.toLowerCase();
+        if (messageLower.includes(botUsername) || messageLower.includes('ia')) {
             return true;
         }
-
-        // Para outros eventos, usa a lógica de intensidade
-        return eventIntensity >= threshold;
+        // Responder baseado na intensidade configurada (chance aleatória)
+        const responseChance = this.intensity * 0.1; // 0-10% chance baseado na intensidade
+        return Math.random() < responseChance;
     }
 
     /**
-     * Adiciona uma resposta de gameplay à fila para processamento.
-     * @param {object} event - O evento de gameplay.
+     * Gera resposta para mensagens de chat usando OpenAI
+     * (Substitui a chamada para ApiFreeLLM)
+     */
+    async _generateResponseForChat(channel, userstate, message) {
+        if (!this.openaiClient) {
+            console.error('Cliente OpenAI não inicializado. Não é possível gerar resposta.');
+            return;
+        }
+        try {
+            const context = this._buildContext(userstate, message);
+            // --- MODIFICAÇÃO: Constrói o prompt no formato de mensagens da OpenAI ---
+            const messages = await this._buildPromptForOpenAI(message, {
+                eventType: 'chat_mention', // Ou 'chat_general'
+                username: userstate.username,
+                game: context.currentGame,
+                recentEvents: context.recentEvents,
+                stats: context.stats,
+                conversationHistory: context.conversationHistory
+            });
+            // --- FIM MODIFICAÇÃO ---
+
+            // --- MODIFICAÇÃO: Chamada para a API da OpenAI ---
+            const chatCompletion = await this.openaiClient.chat.completions.create({
+                model: "gpt-3.5-turbo", // Modelo a ser usado. Pode ser configurável.
+                messages: messages,
+                temperature: 0.7, // Criatividade da resposta (0.0 a 1.0)
+                max_tokens: 150 // Limite de tokens na resposta
+            });
+            const aiResponse = chatCompletion.choices[0].message.content;
+            // --- FIM MODIFICAÇÃO ---
+
+            const filteredResponse = this._filterAndCleanResponse(aiResponse);
+            if (filteredResponse) {
+                this.twitchClient.say(channel, `@${userstate.username} ${filteredResponse}`);
+                this.lastResponseTime = Date.now();
+                console.log(`IA respondeu no chat: @${userstate.username} ${filteredResponse}`);
+                // Salvar interação com resposta na memória (se memoryManager estiver configurado)
+                if (this.memoryManager) {
+                    this.memoryManager.saveChatInteraction(userstate.username, message, filteredResponse, channel);
+                }
+            }
+        } catch (error) {
+            console.error("Erro ao gerar resposta da IA (OpenAI):", error.message);
+            if (error.response && error.response.data) {
+                console.error('Detalhes do erro da API OpenAI:', error.response.data);
+            }
+            // Opcional: enviar uma mensagem de erro genérica para o chat
+            // this.twitchClient.say(channel, `Desculpe, @${userstate.username}, tive um problema ao gerar a resposta.`);
+        }
+    }
+
+    /**
+     * Adiciona resposta de gameplay à fila
      */
     queueGameplayResponse(event) {
         const response = {
@@ -267,63 +273,167 @@ class GenerativeAI {
     }
 
     /**
-     * Processa a fila de respostas pendentes.
+     * Processa fila de respostas
      */
     async processResponseQueue() {
         if (this.responseQueue.length === 0) return;
 
         const response = this.responseQueue.shift();
-        
+
         // Verificar se não passou muito tempo desde que o evento foi enfileirado
         const timeDiff = Date.now() - response.timestamp;
         if (timeDiff > 60000) { // Ignorar se passou mais de 1 minuto
             console.log('Evento na fila ignorado por tempo limite.');
             return;
         }
-
         if (response.type === 'gameplay') {
-            await this.generateGameplayComment(response.event);
+            await this._generateGameplayComment(response.event);
         }
     }
 
     /**
-     * Gera um comentário sobre um evento de gameplay e o envia para o chat.
-     * @param {object} event - O evento de gameplay.
+     * Gera comentário sobre evento de gameplay usando OpenAI
+     * (Substitui a chamada para ApiFreeLLM)
      */
-    async generateGameplayComment(event) {
-        // Verifica se deve responder com base na intensidade e cooldown
-        if (!this.shouldRespond({ type: 'gameplay', intensity: event.intensity })) {
+    async _generateGameplayComment(event) {
+        if (!this.openaiClient) {
+            console.error('Cliente OpenAI não inicializado. Não é possível gerar comentário de gameplay.');
             return;
         }
+        // Verifica se deve responder com base na intensidade e cooldown
+        const eventIntensity = event.intensity || 0.5;
+        const threshold = 1 - this.intensity; // Quanto maior a intensidade da IA, menor o threshold para responder
+        if (eventIntensity < threshold) {
+            return; // Não comenta se o evento não for "intenso" o suficiente para a IA
+        }
+        // Verifica o intervalo mínimo entre respostas automáticas
+        const timeSinceLastResponse = Date.now() - this.lastResponseTime;
+        if (timeSinceLastResponse < this.minResponseInterval) {
+            return;
+        }
+        try {
+            const promptBase = this._generateGameplayPrompt(event);
+            // --- MODIFICAÇÃO: Constrói o prompt no formato de mensagens da OpenAI ---
+            const messages = await this._buildPromptForOpenAI(promptBase, {
+                eventType: event.type,
+                game: this.gameplayContext.currentGame
+            });
+            // --- FIM MODIFICAÇÃO ---
 
-        const prompt = this.generateGameplayPrompt(event);
-        const context = {
-            eventType: event.type,
-            game: this.gameplayContext.currentGame
-        };
-        
-        const response = await this.generateResponse(prompt, context);
-        
-        if (response && this.twitchClient) {
-            try {
+            // --- MODIFICAÇÃO: Chamada para a API da OpenAI ---
+            const chatCompletion = await this.openaiClient.chat.completions.create({
+                model: "gpt-3.5-turbo", // Modelo a ser usado.
+                messages: messages,
+                temperature: 0.8, // Um pouco mais criativo para comentários de gameplay
+                max_tokens: 100 // Comentários mais curtos
+            });
+            const comment = chatCompletion.choices[0].message.content;
+            // --- FIM MODIFICAÇÃO ---
+
+            const filteredComment = this._filterAndCleanResponse(comment);
+            if (filteredComment) {
                 // Enviar para todos os canais configurados
                 this.config.twitch.channels.forEach(channel => {
-                    this.twitchClient.say(channel, response);
+                    this.twitchClient.say(channel, filteredComment);
                 });
-                this.lastResponseTime = Date.now(); // Atualiza o tempo da última resposta
-                console.log(`IA comentou gameplay: ${response}`);
-            } catch (error) {
-                console.error('Erro ao enviar comentário da IA para o chat:', error);
+                this.lastResponseTime = Date.Now(); // Atualiza o tempo da última resposta
+                console.log(`IA comentou gameplay: ${filteredComment}`);
+            }
+        } catch (error) {
+            console.error("Erro ao gerar comentário de gameplay (OpenAI):", error.message);
+            if (error.response && error.response.data) {
+                console.error('Detalhes do erro da API OpenAI:', error.response.data);
             }
         }
     }
 
     /**
+     * Constrói contexto para a IA
+     * (Do cavalo.txt)
+     */
+    _buildContext(userstate, message) {
+        return {
+            username: userstate.username,
+            message: message,
+            currentGame: this.gameplayContext.currentGame,
+            recentEvents: this.gameplayContext.recentEvents.slice(-3), // Últimos 3 eventos
+            stats: this.gameplayContext.stats,
+            conversationHistory: this.conversationHistory.slice(-5) // Últimas 5 interações
+        };
+    }
+
+    /**
+     * Constrói o prompt completo para a IA da OpenAI, incluindo personalidade e contexto.
+     * O formato da OpenAI é um array de objetos { role: "user/system/assistant", content: "..." }
+     * (Adaptado do _buildPrompt do copia.txt, para o formato de mensagens da OpenAI)
+     * @param {string} userPrompt - A mensagem original do usuário ou evento.
+     * @param {object} context - Contexto adicional (tipo de evento, jogo atual, etc.).
+     * @returns {Array<Object>} Um array de objetos de mensagem formatado para a API da OpenAI.
+     */
+    async _buildPromptForOpenAI(userPrompt, context) { 
+        const messages = [];
+
+        // 1. System Prompt (Personalidade do Bot)
+        let systemContent = this.systemPrompt; // Seu prompt de sistema carregado do DB
+
+        const gameContext = context.game || this.gameplayContext.currentGame;
+        const eventType = context.eventType || 'geral';
+
+        if (gameContext !== 'Jogo não detectado') {
+            systemContent += ` O jogo atual é ${gameContext}.`;
+        }
+        // Adiciona contexto específico de evento, se aplicável
+        if (eventType === 'kill') {
+            systemContent += ` O jogador acabou de eliminar um inimigo. Comemore essa conquista!`;
+        } else if (eventType === 'death') {
+            systemContent += ` O jogador foi eliminado. Seja encorajador e positivo.`;
+        } else if (eventType === 'win') {
+            systemContent += ` O jogador venceu! Comemore essa vitória incrível!`;
+        } else if (eventType === 'combo') {
+            systemContent += ` O jogador fez um combo espetacular!`;
+        } else if (eventType === 'chat_mention' && context.username) {
+            systemContent += ` O usuário ${context.username} mencionou você no chat. Responda diretamente a ele.`;
+        }
+
+        // --- MODIFICAÇÃO: Injeção da memória de jogos (usando this.gameMemoryService) ---
+        if (this.gameMemoryService) { // Garante que a instância existe
+            await this.gameMemoryService.updateGameMemory(); 
+            const gameMemoryContext = await this.gameMemoryService.getFormattedMemoryForPrompt();
+            systemContent += `\n\n${gameMemoryContext}`;
+        } else {
+            console.warn('GameMemoryService não está disponível na IA Generativa. Contexto de jogos não será adicionado.');
+        }
+        // --- FIM MODIFICAÇÃO ---
+
+        messages.push({ role: "system", content: systemContent });
+
+        // 2. Histórico de Conversa (como mensagens de 'user' e 'assistant' se aplicável)
+        // A OpenAI recomenda um histórico mais conciso para manter o contexto.
+        // Aqui, estamos adicionando as últimas interações como mensagens de 'user'.
+        // Se você tiver respostas do bot salvas, pode adicioná-las como 'assistant'.
+        if (context.conversationHistory && context.conversationHistory.length > 0) {
+            context.conversationHistory.forEach(entry => {
+                messages.push({ role: "user", content: `${entry.username}: ${entry.message}` });
+                // Exemplo se você tivesse respostas do bot no histórico:
+                // if (entry.botResponse) {
+                //     messages.push({ role: "assistant", content: entry.botResponse });
+                // }
+            });
+        }
+
+        // 3. Mensagem/Evento Atual do Usuário
+        messages.push({ role: "user", content: userPrompt });
+
+        return messages;
+    }
+
+    /**
      * Gera um prompt específico para eventos de gameplay.
+     * (Do copia.txt)
      * @param {object} eventData - Dados do evento de gameplay.
      * @returns {string} Um prompt aleatório para o evento.
      */
-    generateGameplayPrompt(eventData) {
+    _generateGameplayPrompt(eventData) {
         const prompts = {
             kill: [
                 "Que eliminação incrível!",
@@ -350,92 +460,71 @@ class GenerativeAI {
                 "Impressionante!"
             ]
         };
-        
         const eventPrompts = prompts[eventData.type] || ["Que jogada!"];
         return eventPrompts[Math.floor(Math.random() * eventPrompts.length)];
     }
 
+    // REMOVIDO: _callApiFreeLLM (não é mais necessário)
+
     /**
-     * Processa mensagens do chat para possíveis respostas da IA.
-     * @param {string} username - Nome de usuário que enviou a mensagem.
-     * @param {string} message - O conteúdo da mensagem.
-     * @param {object} userstate - Objeto de estado do usuário (do tmi.js).
+     * Filtra e limpa a resposta da IA.
+     * (Combina filterResponse do cavalo.txt e cleanResponse do copia.txt)
      */
-    async processChatMessage(username, message, userstate) {
-        if (!this.isActive) return;
-        
-        console.log(`Mensagem do chat processada - ${username}: ${String(message)}`);
-        
-        // Verifica se o bot deve responder a esta mensagem
-        const botUsername = this.config.twitch.username.toLowerCase();
-        const messageLower = message.toLowerCase();
-        const isMention = messageLower.includes(botUsername) || messageLower.includes('ia'); // Adicionado 'ia' como gatilho
-        
-        if (isMention || this.shouldRespond({ type: 'chat', intensity: 0.5 })) { // Considera a intensidade para respostas não-mencionadas
-            const response = await this.generateResponse(
-                message, // A mensagem original do chat
-                { eventType: 'chat_mention', username: username } // Contexto para a IA
-            );
-            
-            if (response && this.twitchClient) {
-                try {
-                    // Responde no canal de onde veio a mensagem
-                    const channel = userstate['room-id'] ? `#${userstate['room-id']}` : userstate.channel; // Tenta pegar o canal corretamente
-                    this.twitchClient.say(channel, `@${username} ${response}`);
-                    this.lastResponseTime = Date.now(); // Atualiza o tempo da última resposta
-                    console.log(`IA respondeu no chat: @${username} ${response}`);
-                } catch (error) {
-                    console.error('Erro ao enviar resposta da IA para o chat:', error);
-                }
+    _filterAndCleanResponse(response) {
+        if (!response) return null;
+        let cleanedText = response;
+
+        // 1. Verificar palavras banidas (do cavalo.txt)
+        const bannedWords = this.config.filters?.bannedWords || [];
+        const lowerResponse = cleanedText.toLowerCase();
+
+        for (const word of bannedWords) {
+            if (lowerResponse.includes(word.toLowerCase())) {
+                console.log('Resposta filtrada por conter palavra banida');
+                return null; // Retorna nulo se contiver palavra banida
             }
+        }
+        // 2. Remover quebras de linha excessivas (do copia.txt)
+        cleanedText = cleanedText.replace(/\n+/g, ' ').trim();
+        // 3. Limitar tamanho (do copia.txt, ajustado para ser mais restritivo para chat)
+        if (cleanedText.length > 400) {
+            cleanedText = cleanedText.substring(0, 397) + '...';
+        }
+        // 4. Remover caracteres especiais problemáticos (do copia.txt)
+        // Mantém letras, números, espaços, pontuação básica e alguns emojis comuns de jogo/reação
+        cleanedText = cleanedText.replace(/[^\w\s\u00C0-\u017F!?.,;:()🎮🔥💪👏🎯⚡��]/g, '');
+
+        return cleanedText.trim();
+    }
+
+    /**
+     * Adiciona mensagem ao histórico de conversa
+     * (Do cavalo.txt)
+     */
+    addToConversationHistory(username, message) {
+        this.conversationHistory.push({
+            username: username,
+            message: message,
+            timestamp: Date.now()
+        });
+        // Manter apenas as últimas 20 mensagens
+        if (this.conversationHistory.length > 20) {
+            this.conversationHistory.shift();
         }
     }
 
     /**
-     * Processa eventos de gameplay.
-     * @param {object} event - O evento de gameplay.
+     * Atualiza intensidade da IA
+     * (Do cavalo.txt)
      */
-    async processGameplayEvent(event) {
-        console.log(`IA processando evento de gameplay: ${event.type} - ${event.description}`);
-        // Enfileira o evento para ser processado pela fila de respostas
-        this.queueGameplayResponse(event);
+    updateIntensity(intensity) {
+        this.intensity = Math.max(0, Math.min(1, intensity));
+        console.log(`Intensidade da IA atualizada para: ${this.intensity}`);
     }
 
     /**
-     * Obtém o status atual da IA.
-     * @returns {object} Objeto com informações de status.
-     */
-    getStatus() {
-        return {
-            active: this.isActive,
-            intensity: this.intensity,
-            conversationHistory: this.conversationHistory.length,
-            recentEvents: this.gameplayContext.recentEvents.length,
-            currentGame: this.gameplayContext.currentGame,
-            responseQueueLength: this.responseQueue.length
-        };
-    }
-
-    /**
-     * Atualiza estatísticas de gameplay.
-     * @param {object} stats - Novas estatísticas de gameplay.
-     */
-    updateGameplayStats(stats) {
-        this.gameplayContext.stats = { ...this.gameplayContext.stats, ...stats };
-        console.log('Stats de gameplay atualizadas:', stats);
-    }
-
-    /**
-     * Atualiza o nome do jogo atual.
-     * @param {string} gameName - Nome do jogo.
-     */
-    updateCurrentGame(gameName) {
-        this.gameplayContext.currentGame = gameName || 'Jogo não detectado';
-        console.log(`Jogo atual atualizado para: ${this.gameplayContext.currentGame}`);
-    }
-
-    /**
-     * Limpa o histórico de conversa e o contexto de gameplay.
+     * Limpa histórico e contexto
+     * (Do cavalo.txt)
      */
     reset() {
         this.conversationHistory = [];
@@ -443,6 +532,20 @@ class GenerativeAI {
         this.responseQueue = [];
         console.log('Contexto da IA resetado');
     }
-}
 
+    /**
+     * Obtém estatísticas da IA
+     * (Do cavalo.txt)
+     */
+    getStats() {
+        return {
+            isActive: this.isActive,
+            intensity: this.intensity,
+            conversationHistoryLength: this.conversationHistory.length,
+            recentEventsLength: this.gameplayContext.recentEvents.length,
+            queueLength: this.responseQueue.length,
+            systemPrompt: this.systemPrompt // Inclui o prompt atual nos stats
+        };
+    }
+}
 module.exports = GenerativeAI;
