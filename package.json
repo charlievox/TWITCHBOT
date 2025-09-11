@@ -6,11 +6,8 @@
   "scripts": {
     "start": "node index.js",
     "dev": "node index.js",
-<<<<<<< HEAD
+
      "test": "echo 'Error: no test specified' && exit 1"
-=======
-   "test": "echo \"Error: no test specified\" && exit 1"
->>>>>>> bdd24b804b5239a371d3e2b113a69a9a98d84095
 
   },
   "keywords": [
